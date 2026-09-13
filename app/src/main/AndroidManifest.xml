@@ -14,7 +14,9 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@drawable/spelling_splash"
         android:label="@string/app_name"
+        android:roundIcon="@drawable/spelling_splash"
         android:supportsRtl="true"
         android:theme="@style/Theme.SpellingGate">
 

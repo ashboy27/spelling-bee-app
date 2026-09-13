@@ -57,6 +57,7 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - The challenge screen follows a hierarchy of progress header, listening card, secondary action row, and answer section; related actions are grouped with equal-width controls and generous spacing to avoid a crowded vertical button stack.
 - The Activity uses `windowSoftInputMode="adjustResize"`; `imePadding`, vertical scrolling, and Compose `BringIntoViewRequester` keep the focused input plus Unlock/Submit actions visible above the on-screen keyboard.
 - Android 12+ launch splash uses the user-provided `res/drawable-nodpi/spelling_splash.jpg` with the warm-paper (or night-leaf) background instead of the default Android app icon.
+- The same bee artwork is registered as both the standard and round launcher icon in the application manifest.
 
 ## Password bypass
 
