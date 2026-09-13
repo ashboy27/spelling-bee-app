@@ -1,6 +1,7 @@
 package com.spellinggate.app.speech
 
 import android.content.Context
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -123,10 +124,13 @@ class AndroidTextToSpeechSpeaker(
 
         val engine = textToSpeech ?: return false
         val utteranceId = "spelling-gate-${utteranceCounter.incrementAndGet()}"
+        val speechParams = Bundle().apply {
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+        }
         return engine.speak(
             word,
             TextToSpeech.QUEUE_FLUSH,
-            null,
+            speechParams,
             utteranceId,
         ) == TextToSpeech.SUCCESS
     }
@@ -159,6 +163,6 @@ class AndroidTextToSpeechSpeaker(
 
     private companion object {
         const val TAG = "SpellingGate"
-        const val SPEECH_RATE = 0.85f
+        const val SPEECH_RATE = 0.70f
     }
 }
