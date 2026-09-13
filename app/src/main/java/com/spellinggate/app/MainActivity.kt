@@ -529,7 +529,11 @@ private fun SpellingChallengeScreen(
                 label = { Text("Enter spelling") },
                 placeholder = { Text("Type what you hear") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(
+                    autoCorrectEnabled = false,
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
                 keyboardActions = KeyboardActions(onDone = { onSubmit() }),
             )
             Spacer(Modifier.height(16.dp))

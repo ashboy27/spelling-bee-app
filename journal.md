@@ -41,6 +41,7 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - TTS is not created until Start Challenge is pressed, preventing the first word from being spoken before the user is ready.
 - `AndroidTextToSpeechSpeaker` uses Android `TextToSpeech`, `Locale.US`, automatic first pronunciation, replay support, initialization/error states, and lifecycle shutdown.
 - The word itself is not displayed in the challenge UI.
+- The spelling input uses password-class IME input with `autoCorrectEnabled = false`, requesting that the active Android keyboard suppress autocomplete, prediction, and spelling corrections. No password visual transformation is applied, so typed letters remain visible.
 - After the tenth correct answer or valid password, the gate state is released, overlays/lock-task are stopped, and `finishAndRemoveTask()` closes the app.
 
 ### Visual system
