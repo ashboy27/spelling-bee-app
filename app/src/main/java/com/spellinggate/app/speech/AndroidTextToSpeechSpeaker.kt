@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import android.util.Log
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
@@ -60,14 +61,22 @@ class AndroidTextToSpeechSpeaker(
                 return@post
             }
 
-            val languageResult = engine.setLanguage(Locale.US)
+            val selectedVoice = selectRegionalEnglishVoice(engine)
+            val language = selectedVoice?.locale ?: Locale.US
+            val languageResult = engine.setLanguage(language)
             if (
                 languageResult == TextToSpeech.LANG_MISSING_DATA ||
                 languageResult == TextToSpeech.LANG_NOT_SUPPORTED
             ) {
-                Log.e(TAG, "Speech: English (United States) is unavailable")
+                Log.e(TAG, "Speech: English voice data is unavailable")
                 notifyStatus(SpeechStatus.LANGUAGE_UNAVAILABLE)
                 return@post
+            }
+            if (selectedVoice != null) {
+                engine.voice = selectedVoice
+                Log.d(TAG, "Speech: using voice ${selectedVoice.name} (${selectedVoice.locale})")
+            } else {
+                Log.d(TAG, "Speech: regional English voice unavailable; using engine default")
             }
 
             engine.setSpeechRate(SPEECH_RATE)
@@ -88,8 +97,24 @@ class AndroidTextToSpeechSpeaker(
                 },
             )
 
-            Log.d(TAG, "Speech: TTS engine ready with English (United States)")
+            Log.d(TAG, "Speech: TTS engine ready with ${language.toLanguageTag()}")
             notifyStatus(SpeechStatus.READY)
+        }
+    }
+
+    private fun selectRegionalEnglishVoice(engine: TextToSpeech): Voice? {
+        val voices = engine.voices ?: return null
+        val candidates = voices.filter { voice ->
+            voice.locale.language == "en" && !voice.isNetworkConnectionRequired
+        }
+        return candidates.minByOrNull { voice ->
+            when (voice.locale.country.uppercase(Locale.ROOT)) {
+                "PK" -> 0
+                "IN" -> 1
+                "GB" -> 2
+                "US" -> 3
+                else -> 4
+            }
         }
     }
 
