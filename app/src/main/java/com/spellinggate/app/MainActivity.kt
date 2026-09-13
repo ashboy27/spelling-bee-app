@@ -25,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,9 +39,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.spellinggate.app.data.LocalWordRepository
 import com.spellinggate.app.domain.AnswerChecker
 import com.spellinggate.app.domain.ChallengeWordSelector
+import com.spellinggate.app.speech.AndroidTextToSpeechSpeaker
+import com.spellinggate.app.speech.SpeechStatus
 import com.spellinggate.app.ui.theme.SpellingGateTheme
 
 private const val TAG = "SpellingGate"
@@ -49,7 +53,7 @@ private const val DEFAULT_CHALLENGE_SIZE = 10
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "Milestone 2 app started")
+        Log.d(TAG, "Milestone 3 app started")
 
         setContent {
             SpellingGateTheme {
@@ -61,6 +65,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SpellingGateApp() {
+    val context = LocalContext.current
     val challengeWords = remember {
         val repository = LocalWordRepository()
         ChallengeWordSelector().select(
@@ -72,10 +77,55 @@ private fun SpellingGateApp() {
     var answer by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
+    var speechStatus by remember { mutableStateOf(SpeechStatus.INITIALIZING) }
+    var speaker by remember { mutableStateOf<AndroidTextToSpeechSpeaker?>(null) }
+    var automaticallySpokenWord by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(currentWord) {
         Log.d(TAG, "Challenge: Selected ${challengeWords.size} unique words")
-        Log.d(TAG, "Challenge: Development test word is '${currentWord.spelling}'")
+        Log.d(TAG, "Challenge: Word 1")
+    }
+
+    DisposableEffect(context) {
+        val textToSpeechSpeaker = AndroidTextToSpeechSpeaker(
+            context = context,
+            onStatusChanged = { newStatus ->
+                speechStatus = newStatus
+                Log.d(TAG, "Speech: Status changed to $newStatus")
+
+                speechStatusMessage(newStatus)?.let { message ->
+                    statusMessage = message
+                    statusIsError = true
+                }
+            },
+            onSynthesisError = {
+                statusMessage = "The word could not be spoken. You can try Replay Word."
+                statusIsError = true
+                Log.e(TAG, "Speech: Synthesis failed")
+            },
+        )
+        speaker = textToSpeechSpeaker
+
+        onDispose {
+            textToSpeechSpeaker.shutdown()
+            Log.d(TAG, "Speech: Engine shut down")
+        }
+    }
+
+    LaunchedEffect(speechStatus, speaker, currentWord) {
+        if (
+            speechStatus == SpeechStatus.READY &&
+            automaticallySpokenWord != currentWord.spelling
+        ) {
+            if (speaker?.speak(currentWord.spelling) == true) {
+                automaticallySpokenWord = currentWord.spelling
+                Log.d(TAG, "Speech: Automatically speaking current word")
+            } else {
+                statusMessage = "The word could not be spoken. You can try Replay Word."
+                statusIsError = true
+                Log.e(TAG, "Speech: Automatic speak request failed")
+            }
+        }
     }
 
     SpellingChallengeScreen(
@@ -86,9 +136,31 @@ private fun SpellingGateApp() {
         statusIsError = statusIsError,
         onAnswerChanged = { answer = it },
         onReplayWord = {
-            statusMessage = "Development word written to Logcat. Audio comes next."
-            statusIsError = false
-            Log.d(TAG, "Challenge: Development test word is '${currentWord.spelling}'")
+            when (speechStatus) {
+                SpeechStatus.READY -> {
+                    if (speaker?.speak(currentWord.spelling) == true) {
+                        statusMessage = ""
+                        statusIsError = false
+                        Log.d(TAG, "Speech: Replaying current word")
+                    } else {
+                        statusMessage = "The word could not be spoken. Please try again."
+                        statusIsError = true
+                        Log.e(TAG, "Speech: Replay request failed")
+                    }
+                }
+
+                SpeechStatus.INITIALIZING -> {
+                    statusMessage = "Speech is still starting. Please try again."
+                    statusIsError = false
+                }
+
+                SpeechStatus.LANGUAGE_UNAVAILABLE,
+                SpeechStatus.ENGINE_UNAVAILABLE,
+                -> {
+                    statusMessage = speechStatusMessage(speechStatus).orEmpty()
+                    statusIsError = true
+                }
+            }
         },
         onSubmit = {
             when {
@@ -117,6 +189,18 @@ private fun SpellingGateApp() {
             Log.d(TAG, "Gate: Password placeholder selected")
         },
     )
+}
+
+private fun speechStatusMessage(status: SpeechStatus): String? = when (status) {
+    SpeechStatus.INITIALIZING,
+    SpeechStatus.READY,
+    -> null
+
+    SpeechStatus.LANGUAGE_UNAVAILABLE ->
+        "English (United States) speech data is unavailable on this phone."
+
+    SpeechStatus.ENGINE_UNAVAILABLE ->
+        "No working text-to-speech engine is available on this phone."
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
