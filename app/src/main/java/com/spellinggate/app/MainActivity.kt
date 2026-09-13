@@ -25,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,14 +38,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.spellinggate.app.data.LocalWordRepository
+import com.spellinggate.app.domain.AnswerChecker
+import com.spellinggate.app.domain.ChallengeWordSelector
 import com.spellinggate.app.ui.theme.SpellingGateTheme
 
 private const val TAG = "SpellingGate"
+private const val DEFAULT_CHALLENGE_SIZE = 10
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "Milestone 1 app started")
+        Log.d(TAG, "Milestone 2 app started")
 
         setContent {
             SpellingGateTheme {
@@ -56,29 +61,59 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SpellingGateApp() {
+    val challengeWords = remember {
+        val repository = LocalWordRepository()
+        ChallengeWordSelector().select(
+            words = repository.getAllWords(),
+            count = DEFAULT_CHALLENGE_SIZE,
+        )
+    }
+    val currentWord = challengeWords.first()
     var answer by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf("") }
+    var statusIsError by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentWord) {
+        Log.d(TAG, "Challenge: Selected ${challengeWords.size} unique words")
+        Log.d(TAG, "Challenge: Development test word is '${currentWord.spelling}'")
+    }
 
     SpellingChallengeScreen(
         currentWord = 1,
-        totalWords = 10,
+        totalWords = challengeWords.size,
         answer = answer,
         statusMessage = statusMessage,
+        statusIsError = statusIsError,
         onAnswerChanged = { answer = it },
         onReplayWord = {
-            statusMessage = "Audio will be added in the Text-to-Speech milestone."
-            Log.d(TAG, "Challenge: Replay placeholder selected")
+            statusMessage = "Development word written to Logcat. Audio comes next."
+            statusIsError = false
+            Log.d(TAG, "Challenge: Development test word is '${currentWord.spelling}'")
         },
         onSubmit = {
-            statusMessage = if (answer.isBlank()) {
-                "Enter a spelling before submitting."
-            } else {
-                "Answer captured. Checking spelling comes in Milestone 2."
+            when {
+                answer.isBlank() -> {
+                    statusMessage = "Enter a spelling before submitting."
+                    statusIsError = true
+                    Log.d(TAG, "Challenge: Empty answer rejected")
+                }
+
+                AnswerChecker.isCorrect(answer, currentWord) -> {
+                    statusMessage = "Correct ✓"
+                    statusIsError = false
+                    Log.d(TAG, "Challenge: Correct")
+                }
+
+                else -> {
+                    statusMessage = "Incorrect. Try again."
+                    statusIsError = true
+                    Log.d(TAG, "Challenge: Incorrect")
+                }
             }
-            Log.d(TAG, "Challenge: Submit placeholder selected")
         },
         onUsePassword = {
             statusMessage = "Password bypass will be added in a later milestone."
+            statusIsError = false
             Log.d(TAG, "Gate: Password placeholder selected")
         },
     )
@@ -91,6 +126,7 @@ private fun SpellingChallengeScreen(
     totalWords: Int,
     answer: String,
     statusMessage: String,
+    statusIsError: Boolean,
     onAnswerChanged: (String) -> Unit,
     onReplayWord: () -> Unit,
     onSubmit: () -> Unit,
@@ -165,7 +201,11 @@ private fun SpellingChallengeScreen(
                 Text(
                     text = statusMessage,
                     modifier = Modifier.widthIn(max = 440.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (statusIsError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -189,6 +229,7 @@ private fun SpellingChallengeScreenPreview() {
             totalWords = 10,
             answer = "",
             statusMessage = "",
+            statusIsError = false,
             onAnswerChanged = {},
             onReplayWord = {},
             onSubmit = {},
