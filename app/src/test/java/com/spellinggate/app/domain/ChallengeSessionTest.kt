@@ -1,0 +1,49 @@
+package com.spellinggate.app.domain
+
+import com.spellinggate.app.model.SpellingWord
+import com.spellinggate.app.model.WordDifficulty
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ChallengeSessionTest {
+    private val words = listOf(
+        SpellingWord("calendar", WordDifficulty.EASY),
+        SpellingWord("necessary", WordDifficulty.EASY),
+        SpellingWord("conscientious", WordDifficulty.HARD),
+    )
+
+    @Test
+    fun incorrectAnswerDoesNotAdvance() {
+        val session = ChallengeSession.start(words)
+        val submission = session.submit("calender")
+
+        assertEquals(SubmissionResult.INCORRECT, submission.result)
+        assertEquals(0, submission.session.currentWordIndex)
+        assertEquals("calendar", submission.session.currentWord.spelling)
+    }
+
+    @Test
+    fun correctAnswerAdvancesAndUsesExistingAnswerRules() {
+        val session = ChallengeSession.start(words)
+        val submission = session.submit("  CALENDAR  ")
+
+        assertEquals(SubmissionResult.CORRECT, submission.result)
+        assertEquals(1, submission.session.currentWordIndex)
+        assertEquals("necessary", submission.session.currentWord.spelling)
+        assertFalse(submission.session.isComplete)
+    }
+
+    @Test
+    fun finalCorrectAnswerCompletesChallenge() {
+        var session = ChallengeSession.start(words)
+        session = session.submit("calendar").session
+        session = session.submit("necessary").session
+        val finalSubmission = session.submit("conscientious")
+
+        assertEquals(SubmissionResult.COMPLETE, finalSubmission.result)
+        assertTrue(finalSubmission.session.isComplete)
+        assertEquals(3, finalSubmission.session.currentNumber)
+    }
+}

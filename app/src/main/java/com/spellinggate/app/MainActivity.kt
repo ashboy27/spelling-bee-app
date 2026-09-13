@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,8 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.spellinggate.app.data.LocalWordRepository
-import com.spellinggate.app.domain.AnswerChecker
+import com.spellinggate.app.domain.ChallengeSession
 import com.spellinggate.app.domain.ChallengeWordSelector
+import com.spellinggate.app.domain.SubmissionResult
 import com.spellinggate.app.speech.AndroidTextToSpeechSpeaker
 import com.spellinggate.app.speech.SpeechStatus
 import com.spellinggate.app.ui.theme.SpellingGateTheme
@@ -53,7 +55,7 @@ private const val DEFAULT_CHALLENGE_SIZE = 10
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "Milestone 3 app started")
+        Log.d(TAG, "Milestone 4 app started")
 
         setContent {
             SpellingGateTheme {
@@ -65,7 +67,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SpellingGateApp() {
-    val context = LocalContext.current
     val challengeWords = remember {
         val repository = LocalWordRepository()
         ChallengeWordSelector().select(
@@ -73,17 +74,27 @@ private fun SpellingGateApp() {
             count = DEFAULT_CHALLENGE_SIZE,
         )
     }
-    val currentWord = challengeWords.first()
+    var session by remember { mutableStateOf(ChallengeSession.start(challengeWords)) }
     var answer by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
+
+    if (session.isComplete) {
+        ChallengeCompleteScreen(totalWords = session.totalWords)
+        return
+    }
+
+    val context = LocalContext.current
+    val currentWord = session.currentWord
     var speechStatus by remember { mutableStateOf(SpeechStatus.INITIALIZING) }
     var speaker by remember { mutableStateOf<AndroidTextToSpeechSpeaker?>(null) }
     var automaticallySpokenWord by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(currentWord) {
-        Log.d(TAG, "Challenge: Selected ${challengeWords.size} unique words")
-        Log.d(TAG, "Challenge: Word 1")
+    LaunchedEffect(session.currentWordIndex) {
+        if (session.currentWordIndex == 0) {
+            Log.d(TAG, "Challenge: Selected ${session.totalWords} unique words")
+        }
+        Log.d(TAG, "Challenge: Word ${session.currentNumber}")
     }
 
     DisposableEffect(context) {
@@ -129,8 +140,8 @@ private fun SpellingGateApp() {
     }
 
     SpellingChallengeScreen(
-        currentWord = 1,
-        totalWords = challengeWords.size,
+        currentWord = session.currentNumber,
+        totalWords = session.totalWords,
         answer = answer,
         statusMessage = statusMessage,
         statusIsError = statusIsError,
@@ -170,16 +181,31 @@ private fun SpellingGateApp() {
                     Log.d(TAG, "Challenge: Empty answer rejected")
                 }
 
-                AnswerChecker.isCorrect(answer, currentWord) -> {
-                    statusMessage = "Correct ✓"
-                    statusIsError = false
-                    Log.d(TAG, "Challenge: Correct")
-                }
-
                 else -> {
-                    statusMessage = "Incorrect. Try again."
-                    statusIsError = true
-                    Log.d(TAG, "Challenge: Incorrect")
+                    val submission = session.submit(answer)
+                    when (submission.result) {
+                        SubmissionResult.INCORRECT -> {
+                            statusMessage = "Incorrect. Try again."
+                            statusIsError = true
+                            Log.d(TAG, "Challenge: Incorrect")
+                        }
+
+                        SubmissionResult.CORRECT -> {
+                            session = submission.session
+                            answer = ""
+                            statusMessage = "Correct ✓"
+                            statusIsError = false
+                            Log.d(TAG, "Challenge: Correct")
+                        }
+
+                        SubmissionResult.COMPLETE -> {
+                            session = submission.session
+                            answer = ""
+                            statusMessage = ""
+                            statusIsError = false
+                            Log.d(TAG, "Gate: Challenge completed")
+                        }
+                    }
                 }
             }
         },
@@ -189,6 +215,53 @@ private fun SpellingGateApp() {
             Log.d(TAG, "Gate: Password placeholder selected")
         },
     )
+}
+
+@Composable
+private fun ChallengeCompleteScreen(totalWords: Int) {
+    Scaffold { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CheckCircle,
+                contentDescription = null,
+                modifier = Modifier.height(72.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Challenge Complete",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "$totalWords / $totalWords",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "All spelling words were answered correctly.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
 }
 
 private fun speechStatusMessage(status: SpeechStatus): String? = when (status) {
