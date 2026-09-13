@@ -46,4 +46,21 @@ class ChallengeSessionTest {
         assertTrue(finalSubmission.session.isComplete)
         assertEquals(3, finalSubmission.session.currentNumber)
     }
+
+    @Test
+    fun restoredSessionResumesAtSavedWord() {
+        val session = ChallengeSession.restore(words, currentWordIndex = 2)
+
+        assertEquals(2, session.currentWordIndex)
+        assertEquals(3, session.currentNumber)
+        assertEquals("conscientious", session.currentWord.spelling)
+    }
+
+    @Test
+    fun restoredCompleteSessionIsComplete() {
+        val session = ChallengeSession.restore(words, currentWordIndex = words.size)
+
+        assertTrue(session.isComplete)
+        assertEquals(words, session.challengeWords)
+    }
 }

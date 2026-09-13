@@ -3,27 +3,29 @@ package com.spellinggate.app.domain
 import com.spellinggate.app.model.SpellingWord
 
 class ChallengeSession private constructor(
-    private val words: List<SpellingWord>,
+    words: List<SpellingWord>,
     val currentWordIndex: Int,
 ) {
+    val challengeWords: List<SpellingWord> = words.toList()
+
     init {
-        require(words.isNotEmpty()) { "A challenge must contain at least one word." }
-        require(currentWordIndex in 0..words.size) {
+        require(challengeWords.isNotEmpty()) { "A challenge must contain at least one word." }
+        require(currentWordIndex in 0..challengeWords.size) {
             "Current word index is outside the challenge."
         }
     }
 
     val totalWords: Int
-        get() = words.size
+        get() = challengeWords.size
 
     val isComplete: Boolean
-        get() = currentWordIndex == words.size
+        get() = currentWordIndex == challengeWords.size
 
     val currentNumber: Int
         get() = (currentWordIndex + 1).coerceAtMost(totalWords)
 
     val currentWord: SpellingWord
-        get() = checkNotNull(words.getOrNull(currentWordIndex)) {
+        get() = checkNotNull(challengeWords.getOrNull(currentWordIndex)) {
             "A completed challenge has no current word."
         }
 
@@ -36,7 +38,7 @@ class ChallengeSession private constructor(
         }
 
         val advancedSession = ChallengeSession(
-            words = words,
+            words = challengeWords,
             currentWordIndex = currentWordIndex + 1,
         )
         val result = if (advancedSession.isComplete) {
@@ -57,6 +59,14 @@ class ChallengeSession private constructor(
                 words = words.toList(),
                 currentWordIndex = 0,
             )
+
+        fun restore(
+            words: List<SpellingWord>,
+            currentWordIndex: Int,
+        ): ChallengeSession = ChallengeSession(
+            words = words.toList(),
+            currentWordIndex = currentWordIndex,
+        )
     }
 }
 

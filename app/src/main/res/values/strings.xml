@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Spelling Gate</string>
+    <string name="device_admin_description">Shows the spelling challenge after device unlock and controls dedicated-device lock task mode.</string>
 </resources>
