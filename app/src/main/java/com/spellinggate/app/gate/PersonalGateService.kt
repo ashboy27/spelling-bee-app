@@ -88,7 +88,7 @@ class PersonalGateService : Service() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding((24 * density).toInt(), 0, (24 * density).toInt(), 0)
-            setBackgroundColor(Color.rgb(17, 19, 24))
+            setBackgroundColor(Color.rgb(16, 27, 24))
             addView(TextView(context).apply {
                 text = "SPELLING GATE\nReturn to the challenge to continue"
                 textSize = 24f
@@ -97,6 +97,8 @@ class PersonalGateService : Service() {
             })
             addView(Button(context).apply {
                 text = "Return to Challenge"
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(131, 217, 189))
+                setTextColor(Color.rgb(13, 57, 47))
                 setOnClickListener { guard() }
             })
         }

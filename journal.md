@@ -43,6 +43,14 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - The word itself is not displayed in the challenge UI.
 - After the tenth correct answer or valid password, the gate state is released, overlays/lock-task are stopped, and `finishAndRemoveTask()` closes the app.
 
+### Visual system
+
+- The UI uses a restrained **Eucalyptus + Warm Paper** palette rather than a default blue/purple app theme.
+- Light scheme: eucalyptus `#176B57` primary, warm paper `#F7F3E8` background, warm surface `#FFFBF2`, ink `#202521`, and soft sage `#D4E8DF` containers.
+- Dark scheme: light eucalyptus `#83D9BD` primary, deep leaf `#0D392F`, night background `#101B18`, and night surface `#182520`.
+- Clay `#AA493D` is reserved for errors. No decorative accent colors are added.
+- Screens use one rounded, elevated content surface, consistent 52 dp primary actions, outlined secondary actions, keyboard-safe spacing, and scroll support on smaller displays.
+
 ## Password bypass
 
 - Current bypass password: `ashar`.

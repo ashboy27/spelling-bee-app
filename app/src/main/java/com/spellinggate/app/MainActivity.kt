@@ -10,13 +10,17 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -28,7 +32,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -191,7 +197,10 @@ private fun PersonalGateSetupScreen(onGrantPermission: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(24.dp))
-            Button(onClick = onGrantPermission) { Text("Grant Required Permission") }
+            Button(
+                onClick = onGrantPermission,
+                modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().height(52.dp),
+            ) { Text("Grant Required Permission") }
         }
     }
 }
@@ -405,7 +414,10 @@ private fun PasswordBypassScreen(
                 supportingText = if (errorMessage.isNotEmpty()) ({ Text(errorMessage) }) else null,
             )
             Spacer(Modifier.height(20.dp))
-            Button(onClick = onSubmit) { Text("Unlock") }
+            Button(
+                onClick = onSubmit,
+                modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
+            ) { Text("Unlock") }
             TextButton(onClick = onBack) { Text("Back to Spelling") }
         }
     }
@@ -472,7 +484,10 @@ private fun StartChallengeScreen(
                 style = MaterialTheme.typography.bodyLarge,
             )
             Spacer(Modifier.height(28.dp))
-            Button(onClick = onStart) { Text("Start Challenge") }
+            Button(
+                onClick = onStart,
+                modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
+            ) { Text("Start Challenge") }
             Spacer(Modifier.height(12.dp))
             TextButton(onClick = onUsePassword) { Text("Use Password Instead") }
         }
@@ -505,7 +520,7 @@ private fun SpellingChallengeScreen(
             Text("$currentWord / $totalWords", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(24.dp))
             Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.height(56.dp))
-            Button(onClick = onReplayWord) { Text("Replay Word") }
+            OutlinedButton(onClick = onReplayWord) { Text("Replay Word") }
             Spacer(Modifier.height(24.dp))
             OutlinedTextField(
                 value = answer,
@@ -518,7 +533,10 @@ private fun SpellingChallengeScreen(
                 keyboardActions = KeyboardActions(onDone = { onSubmit() }),
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onSubmit, modifier = Modifier.widthIn(min = 160.dp)) { Text("Submit") }
+            Button(
+                onClick = onSubmit,
+                modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
+            ) { Text("Submit") }
             if (statusMessage.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
                 Text(
@@ -536,14 +554,29 @@ private fun SpellingChallengeScreen(
 
 @Composable
 private fun GateColumn(topPadding: Dp, content: @Composable () -> Unit) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(top = topPadding)
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) { content() }
+            .imePadding()
+            .padding(horizontal = 18.dp, vertical = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 2.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 28.dp, vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) { content() }
+        }
+    }
 }
 
 @Preview(showBackground = true)
