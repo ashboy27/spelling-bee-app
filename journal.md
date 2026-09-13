@@ -43,6 +43,7 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - `AndroidTextToSpeechSpeaker` uses Android `TextToSpeech`, preferring installed offline English voices in `en-PK`, then `en-IN`, `en-GB`, and `en-US` order. It falls back safely when a regional voice is unavailable. It also provides automatic first pronunciation, replay support, initialization/error states, and lifecycle shutdown.
 - Speech is tuned for spelling clarity with a slower `0.70` rate and maximum TTS utterance volume (`1.0`); the phone's media-volume setting remains the final loudness limit.
 - The word itself is not displayed in the challenge UI.
+- Each challenge word has an Admin Reveal action protected by the existing bypass password. A successful reveal shows the current spelling in a separate admin card and supports hiding it again; changing words resets the reveal state.
 - The spelling input uses password-class IME input with `autoCorrectEnabled = false`, requesting that the active Android keyboard suppress autocomplete, prediction, and spelling corrections. No password visual transformation is applied, so typed letters remain visible.
 - After the tenth correct answer or valid password, the gate state is released, overlays/lock-task are stopped, and `finishAndRemoveTask()` closes the app.
 
@@ -53,7 +54,9 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - Dark scheme: light eucalyptus `#83D9BD` primary, deep leaf `#0D392F`, night background `#101B18`, and night surface `#182520`.
 - Clay `#AA493D` is reserved for errors. No decorative accent colors are added.
 - Screens use one rounded, elevated content surface, consistent 52 dp primary actions, outlined secondary actions, keyboard-safe spacing, and scroll support on smaller displays.
+- The challenge screen follows a hierarchy of progress header, listening card, secondary action row, and answer section; related actions are grouped with equal-width controls and generous spacing to avoid a crowded vertical button stack.
 - The Activity uses `windowSoftInputMode="adjustResize"`; `imePadding`, vertical scrolling, and Compose `BringIntoViewRequester` keep the focused input plus Unlock/Submit actions visible above the on-screen keyboard.
+- Android 12+ launch splash uses the user-provided `res/drawable-nodpi/spelling_splash.jpg` with the warm-paper (or night-leaf) background instead of the default Android app icon.
 
 ## Password bypass
 

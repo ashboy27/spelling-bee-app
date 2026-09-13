@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.rememberScrollState
@@ -32,7 +33,9 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
@@ -330,6 +333,7 @@ private fun SpellingGateApp(
         activeSession.currentNumber,
         activeSession.totalWords,
         activeSession.currentWordReplacementCount,
+        activeSession.currentWord.spelling,
         answer,
         statusMessage,
         statusIsError,
@@ -541,6 +545,7 @@ private fun SpellingChallengeScreen(
     currentWord: Int,
     totalWords: Int,
     replacementCount: Int,
+    currentWordSpelling: String,
     answer: String,
     statusMessage: String,
     statusIsError: Boolean,
@@ -550,28 +555,123 @@ private fun SpellingChallengeScreen(
     onSubmit: () -> Unit,
     onUsePassword: () -> Unit,
 ) {
+    var showAdminDialog by remember { mutableStateOf(false) }
+    var adminRevealVisible by remember(currentWordSpelling) { mutableStateOf(false) }
+    var adminPassword by remember { mutableStateOf("") }
+    var adminError by remember { mutableStateOf("") }
     val controlsRequester = remember { BringIntoViewRequester() }
     val coroutineScope = rememberCoroutineScope()
     BackHandler { }
     Scaffold { padding ->
         GateColumn(padding.calculateTopPadding()) {
-            Text(
-                "SPELLING GATE",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp,
-            )
-            Spacer(Modifier.height(24.dp))
-            Text("$currentWord / $totalWords", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(24.dp))
-            Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.height(56.dp))
-            OutlinedButton(onClick = onReplayWord) { Text("Replay Word") }
-            OutlinedButton(
-                onClick = onReplaceWord,
-                enabled = replacementCount < ChallengeSession.MAX_REPLACEMENTS_PER_WORD,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("New Word (${ChallengeSession.MAX_REPLACEMENTS_PER_WORD - replacementCount} left)")
+                Column {
+                    Text(
+                        "SPELLING GATE",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                    )
+                    Text("Daily focus", style = MaterialTheme.typography.bodySmall)
+                }
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Text(
+                        "$currentWord / $totalWords",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            LinearProgressIndicator(
+                progress = { currentWord.toFloat() / totalWords.toFloat() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(22.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.VolumeUp,
+                        contentDescription = null,
+                        modifier = Modifier.height(42.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("Listen carefully", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Replay the word whenever you need to.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = onReplayWord) { Text("Replay Word") }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = onReplaceWord,
+                    enabled = replacementCount < ChallengeSession.MAX_REPLACEMENTS_PER_WORD,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        "New word · ${ChallengeSession.MAX_REPLACEMENTS_PER_WORD - replacementCount} left",
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        if (adminRevealVisible) {
+                            adminRevealVisible = false
+                        } else {
+                            adminPassword = ""
+                            adminError = ""
+                            showAdminDialog = true
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text(if (adminRevealVisible) "Hide spelling" else "Admin reveal") }
+            }
+            if (adminRevealVisible) {
+                Spacer(Modifier.height(14.dp))
+                Surface(
+                    modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    tonalElevation = 4.dp,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("Admin spelling", style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            currentWordSpelling,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(24.dp))
             Column(
@@ -580,6 +680,12 @@ private fun SpellingChallengeScreen(
                     .bringIntoViewRequester(controlsRequester),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                Text(
+                    "Type the spelling you hear",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = answer,
                     onValueChange = onAnswerChanged,
@@ -623,6 +729,69 @@ private fun SpellingChallengeScreen(
             }
         }
     }
+
+    if (showAdminDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAdminDialog = false
+                adminPassword = ""
+                adminError = ""
+            },
+            icon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+            title = { Text("Admin reveal") },
+            text = {
+                Column {
+                    Text("Enter the bypass password to view this word.")
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = adminPassword,
+                        onValueChange = {
+                            adminPassword = it
+                            adminError = ""
+                        },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(onDone = {
+                            if (BypassPasswordVerifier.verify(adminPassword)) {
+                                adminRevealVisible = true
+                                showAdminDialog = false
+                                adminPassword = ""
+                                adminError = ""
+                            } else {
+                                adminError = "Incorrect password."
+                            }
+                        }),
+                        isError = adminError.isNotEmpty(),
+                        supportingText = if (adminError.isNotEmpty()) ({ Text(adminError) }) else null,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (BypassPasswordVerifier.verify(adminPassword)) {
+                        adminRevealVisible = true
+                        showAdminDialog = false
+                        adminPassword = ""
+                        adminError = ""
+                    } else {
+                        adminError = "Incorrect password."
+                    }
+                }) { Text("Reveal") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAdminDialog = false
+                    adminPassword = ""
+                    adminError = ""
+                }) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -656,6 +825,6 @@ private fun GateColumn(topPadding: Dp, content: @Composable () -> Unit) {
 @Composable
 private fun PreviewChallenge() {
     SpellingGateTheme {
-        SpellingChallengeScreen(1, 10, 0, "", "", false, {}, {}, {}, {}, {})
+        SpellingChallengeScreen(1, 10, 0, "example", "", "", false, {}, {}, {}, {}, {})
     }
 }
