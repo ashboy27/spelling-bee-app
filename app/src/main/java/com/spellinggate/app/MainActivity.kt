@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,9 +46,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -65,6 +70,8 @@ import com.spellinggate.app.security.BypassPasswordVerifier
 import com.spellinggate.app.speech.AndroidTextToSpeechSpeaker
 import com.spellinggate.app.speech.SpeechStatus
 import com.spellinggate.app.ui.theme.SpellingGateTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val TAG = "SpellingGate"
 
@@ -147,6 +154,7 @@ class MainActivity : ComponentActivity() {
                         initialSession = sessionResult.getOrNull(),
                         onStart = sessionStore::startChallenge,
                         onProgress = sessionStore::saveProgress,
+                        onReplaceWord = sessionStore::replaceCurrentWord,
                         onRelease = ::releaseGate,
                     )
                 } else WordBankErrorScreen(
@@ -212,6 +220,7 @@ private fun SpellingGateApp(
     initialSession: ChallengeSession?,
     onStart: () -> ChallengeSession,
     onProgress: (ChallengeSession) -> Unit,
+    onReplaceWord: (ChallengeSession) -> ChallengeSession,
     onRelease: (ReleaseReason) -> Boolean,
 ) {
     val context = LocalContext.current
@@ -320,6 +329,7 @@ private fun SpellingGateApp(
     SpellingChallengeScreen(
         activeSession.currentNumber,
         activeSession.totalWords,
+        activeSession.currentWordReplacementCount,
         answer,
         statusMessage,
         statusIsError,
@@ -340,6 +350,19 @@ private fun SpellingGateApp(
                     statusIsError = true
                 }
             }
+        },
+        onReplaceWord = {
+            runCatching { onReplaceWord(activeSession) }
+                .onSuccess {
+                    session = it
+                    answer = ""
+                    statusMessage = "New word selected."
+                    statusIsError = false
+                }
+                .onFailure {
+                    statusMessage = it.message ?: "A replacement word could not be selected."
+                    statusIsError = true
+                }
         },
         onSubmit = {
             if (answer.isBlank()) {
@@ -384,6 +407,7 @@ private fun SpellingGateApp(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun PasswordBypassScreen(
     password: String,
     errorMessage: String,
@@ -391,6 +415,8 @@ private fun PasswordBypassScreen(
     onSubmit: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val controlsRequester = remember { BringIntoViewRequester() }
+    val coroutineScope = rememberCoroutineScope()
     BackHandler(onBack = onBack)
     Scaffold { padding ->
         GateColumn(padding.calculateTopPadding()) {
@@ -398,27 +424,42 @@ private fun PasswordBypassScreen(
             Spacer(Modifier.height(20.dp))
             Text("Use Password Instead", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(24.dp))
-            OutlinedTextField(
-                value = password,
-                onValueChange = onPasswordChanged,
-                modifier = Modifier.fillMaxWidth().widthIn(max = 440.dp),
-                label = { Text("Bypass password") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                isError = errorMessage.isNotEmpty(),
-                supportingText = if (errorMessage.isNotEmpty()) ({ Text(errorMessage) }) else null,
-            )
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = onSubmit,
-                modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
-            ) { Text("Unlock") }
-            TextButton(onClick = onBack) { Text("Back to Spelling") }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewRequester(controlsRequester),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChanged,
+                    modifier = Modifier
+                        .widthIn(max = 440.dp)
+                        .fillMaxWidth()
+                        .onFocusChanged { state ->
+                            if (state.isFocused) coroutineScope.launch {
+                                delay(250)
+                                controlsRequester.bringIntoView()
+                            }
+                        },
+                    label = { Text("Bypass password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                    isError = errorMessage.isNotEmpty(),
+                    supportingText = if (errorMessage.isNotEmpty()) ({ Text(errorMessage) }) else null,
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onSubmit,
+                    modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
+                ) { Text("Unlock") }
+                TextButton(onClick = onBack) { Text("Back to Spelling") }
+            }
         }
     }
 }
@@ -495,17 +536,22 @@ private fun StartChallengeScreen(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun SpellingChallengeScreen(
     currentWord: Int,
     totalWords: Int,
+    replacementCount: Int,
     answer: String,
     statusMessage: String,
     statusIsError: Boolean,
     onAnswerChanged: (String) -> Unit,
     onReplayWord: () -> Unit,
+    onReplaceWord: () -> Unit,
     onSubmit: () -> Unit,
     onUsePassword: () -> Unit,
 ) {
+    val controlsRequester = remember { BringIntoViewRequester() }
+    val coroutineScope = rememberCoroutineScope()
     BackHandler { }
     Scaffold { padding ->
         GateColumn(padding.calculateTopPadding()) {
@@ -521,37 +567,60 @@ private fun SpellingChallengeScreen(
             Spacer(Modifier.height(24.dp))
             Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.height(56.dp))
             OutlinedButton(onClick = onReplayWord) { Text("Replay Word") }
-            Spacer(Modifier.height(24.dp))
-            OutlinedTextField(
-                value = answer,
-                onValueChange = onAnswerChanged,
-                modifier = Modifier.fillMaxWidth().widthIn(max = 440.dp),
-                label = { Text("Enter spelling") },
-                placeholder = { Text("Type what you hear") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    autoCorrectEnabled = false,
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-            )
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = onSubmit,
-                modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
-            ) { Text("Submit") }
-            if (statusMessage.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    statusMessage,
-                    color = if (statusIsError) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
+            OutlinedButton(
+                onClick = onReplaceWord,
+                enabled = replacementCount < ChallengeSession.MAX_REPLACEMENTS_PER_WORD,
+            ) {
+                Text("New Word (${ChallengeSession.MAX_REPLACEMENTS_PER_WORD - replacementCount} left)")
             }
-            Spacer(Modifier.height(20.dp))
-            TextButton(onClick = onUsePassword) { Text("Use Password Instead") }
+            Spacer(Modifier.height(24.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewRequester(controlsRequester),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                OutlinedTextField(
+                    value = answer,
+                    onValueChange = onAnswerChanged,
+                    modifier = Modifier
+                        .widthIn(max = 440.dp)
+                        .fillMaxWidth()
+                        .onFocusChanged { state ->
+                            if (state.isFocused) {
+                                coroutineScope.launch {
+                                    delay(250)
+                                    controlsRequester.bringIntoView()
+                                }
+                            }
+                        },
+                    label = { Text("Enter spelling") },
+                    placeholder = { Text("Type what you hear") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        autoCorrectEnabled = false,
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onSubmit,
+                    modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
+                ) { Text("Submit") }
+                if (statusMessage.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        statusMessage,
+                        color = if (statusIsError) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+                TextButton(onClick = onUsePassword) { Text("Use Password Instead") }
+            }
         }
     }
 }
@@ -587,6 +656,6 @@ private fun GateColumn(topPadding: Dp, content: @Composable () -> Unit) {
 @Composable
 private fun PreviewChallenge() {
     SpellingGateTheme {
-        SpellingChallengeScreen(1, 10, "", "", false, {}, {}, {}, {})
+        SpellingChallengeScreen(1, 10, 0, "", "", false, {}, {}, {}, {}, {})
     }
 }

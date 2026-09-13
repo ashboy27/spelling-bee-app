@@ -19,8 +19,9 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 ## Word and challenge engine
 
 - Editable word bank: `app/src/main/assets/words.json`.
-- `AssetWordRepository` parses the JSON with `org.json`, validates difficulty values, rejects an empty bank, and rejects case-insensitive duplicates.
-- `ChallengeWordSelector` randomly selects exactly 10 unique entries exclusively from the JSON bank.
+- `AssetWordRepository` parses a plain JSON string array with `org.json`, trims entries, rejects blanks, rejects an empty bank, and rejects case-insensitive duplicates.
+- `ChallengeWordSelector` randomly selects exactly 10 unique strings exclusively from the JSON bank; there is no difficulty metadata or weighting.
+- Each challenge position supports up to 3 persisted replacements. “New Word” draws an unused word from the full JSON bank, keeps the same position, clears the answer, and automatically speaks the replacement.
 - `AnswerChecker` trims surrounding whitespace and compares case-insensitively.
 - `ChallengeSession` is immutable. It tracks selected words and current index, supports start/restore, and returns `INCORRECT`, `CORRECT`, or `COMPLETE` submission results.
 - Incorrect answers do not advance. Correct answers persist progress before UI advancement.
@@ -51,6 +52,7 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - Dark scheme: light eucalyptus `#83D9BD` primary, deep leaf `#0D392F`, night background `#101B18`, and night surface `#182520`.
 - Clay `#AA493D` is reserved for errors. No decorative accent colors are added.
 - Screens use one rounded, elevated content surface, consistent 52 dp primary actions, outlined secondary actions, keyboard-safe spacing, and scroll support on smaller displays.
+- The Activity uses `windowSoftInputMode="adjustResize"`; `imePadding`, vertical scrolling, and Compose `BringIntoViewRequester` keep the focused input plus Unlock/Submit actions visible above the on-screen keyboard.
 
 ## Password bypass
 

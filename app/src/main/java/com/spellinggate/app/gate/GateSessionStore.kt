@@ -5,7 +5,6 @@ import com.spellinggate.app.data.AssetWordRepository
 import com.spellinggate.app.domain.ChallengeSession
 import com.spellinggate.app.domain.ChallengeWordSelector
 import com.spellinggate.app.model.SpellingWord
-import com.spellinggate.app.model.WordDifficulty
 import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
@@ -51,6 +50,24 @@ class GateSessionStore(context: Context) {
     }
 
     @Synchronized
+    fun replaceCurrentWord(session: ChallengeSession): ChallengeSession {
+        check(isLocked()) { "Cannot replace a word after the gate is released." }
+        val currentSpelling = session.currentWord.spelling.lowercase(Locale.ROOT)
+        val usedSpellings = session.challengeWords
+            .map { it.spelling.lowercase(Locale.ROOT) }
+            .toSet()
+        val candidates = repository.getAllWords().filter { word ->
+            word.spelling.lowercase(Locale.ROOT) !in usedSpellings &&
+                !word.spelling.equals(currentSpelling, ignoreCase = true)
+        }
+        check(candidates.isNotEmpty()) { "No unused replacement words are available." }
+        val replacement = candidates.random()
+        val updatedSession = session.replaceCurrentWord(replacement)
+        writeLockedSession(updatedSession)
+        return updatedSession
+    }
+
+    @Synchronized
     fun release() {
         check(
             preferences.edit()
@@ -66,15 +83,16 @@ class GateSessionStore(context: Context) {
     private fun readSession(rawSession: String): ChallengeSession {
         val json = JSONObject(rawSession)
         val wordArray = json.getJSONArray(JSON_WORDS)
+        val replacementCountArray = json.optJSONArray(JSON_REPLACEMENT_COUNTS)
         val words = buildList {
             for (index in 0 until wordArray.length()) {
-                val word = wordArray.getJSONObject(index)
-                add(
-                    SpellingWord(
-                        spelling = word.getString(JSON_SPELLING),
-                        difficulty = WordDifficulty.valueOf(word.getString(JSON_DIFFICULTY)),
-                    ),
-                )
+                val value = wordArray.get(index)
+                val spelling = if (value is JSONObject) {
+                    value.getString(JSON_SPELLING)
+                } else {
+                    value.toString()
+                }
+                add(SpellingWord(spelling = spelling))
             }
         }
         check(words.size == CHALLENGE_SIZE) {
@@ -83,25 +101,29 @@ class GateSessionStore(context: Context) {
         check(words.map { it.spelling.lowercase(Locale.ROOT) }.distinct().size == words.size) {
             "The saved challenge contains duplicate words."
         }
+        val replacementCounts = List(words.size) { index ->
+            replacementCountArray?.optInt(index, 0) ?: 0
+        }
         return ChallengeSession.restore(
             words = words,
             currentWordIndex = json.getInt(JSON_CURRENT_INDEX),
+            replacementCounts = replacementCounts,
         )
     }
 
     private fun writeLockedSession(session: ChallengeSession) {
         val wordsJson = JSONArray().apply {
             session.challengeWords.forEach { word ->
-                put(
-                    JSONObject()
-                        .put(JSON_SPELLING, word.spelling)
-                        .put(JSON_DIFFICULTY, word.difficulty.name),
-                )
+                put(word.spelling)
             }
+        }
+        val replacementCountsJson = JSONArray().apply {
+            session.replacementCounts.forEach { put(it) }
         }
         val sessionJson = JSONObject()
             .put(JSON_CURRENT_INDEX, session.currentWordIndex)
             .put(JSON_WORDS, wordsJson)
+            .put(JSON_REPLACEMENT_COUNTS, replacementCountsJson)
 
         check(
             preferences.edit()
@@ -122,8 +144,8 @@ class GateSessionStore(context: Context) {
         private const val KEY_SESSION = "challenge_session"
         private const val JSON_CURRENT_INDEX = "currentWordIndex"
         private const val JSON_WORDS = "words"
+        private const val JSON_REPLACEMENT_COUNTS = "replacementCounts"
         private const val JSON_SPELLING = "spelling"
-        private const val JSON_DIFFICULTY = "difficulty"
         const val CHALLENGE_SIZE = 10
 
     }

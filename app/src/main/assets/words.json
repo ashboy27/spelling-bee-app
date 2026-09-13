@@ -1,22 +1,7 @@
-[
-  { "word": "beautiful", "difficulty": "EASY" },
-  { "word": "calendar", "difficulty": "EASY" },
-  { "word": "necessary", "difficulty": "EASY" },
-  { "word": "separate", "difficulty": "EASY" },
-  { "word": "rhythm", "difficulty": "EASY" },
-  { "word": "accommodate", "difficulty": "MEDIUM" },
-  { "word": "definitely", "difficulty": "MEDIUM" },
-  { "word": "embarrass", "difficulty": "MEDIUM" },
-  { "word": "existence", "difficulty": "MEDIUM" },
-  { "word": "fluorescent", "difficulty": "MEDIUM" },
-  { "word": "guarantee", "difficulty": "MEDIUM" },
-  { "word": "independent", "difficulty": "MEDIUM" },
-  { "word": "maintenance", "difficulty": "MEDIUM" },
-  { "word": "millennium", "difficulty": "MEDIUM" },
-  { "word": "occasion", "difficulty": "MEDIUM" },
-  { "word": "privilege", "difficulty": "MEDIUM" },
-  { "word": "acquaintance", "difficulty": "HARD" },
-  { "word": "conscientious", "difficulty": "HARD" },
-  { "word": "liaison", "difficulty": "HARD" },
-  { "word": "questionnaire", "difficulty": "HARD" }
-]
+["recommend", "Regiment", "regional", "remnants", "Results", "Riddance", "Rubric", "Satellite", "Sawdust", "Scholar", "sconce", "Scrounge", "Seclusion", "Sensory", "Severely", "Shrugged", "Skirmish", "snowy", "Solitude", "Spangled", "Specific", "Spinster", "Spreadsheet", "Steampunk", "Stewardship", "Stubborn", "Sturdy", "Suffix", "Superb", "sustain", "Swipe", "Sympathy", "System", "Tantrum", "Tase", "Teenagers", "Terrier", "Thawed", "Thespian", "Timidly", "Toastmaster", "Tolerable", "touted", "Trespass", "Trinkets", "Trove", "Twirled", "Unbearable", "University", "Uppercut", "Useful", "Valuables", "Various", "Varnish", "Veered", "Venue", "Vinegar", "Violin", "Vocabulary", "Voyage", "Waiver", "Warmth", "waxen", "Whirlybird", "Whiskers", "Witnessed", "Wizened", "Wring", "Yawl", "Yoo-hoo",  "Abandon", "abolish", "Abroad", "Acceptance", "Accomplice", "Accurate", "Acrostic", "Addition", "Admirer", "Aforesaid", "Afroth", "Agility", "aloof", "Amazon", "Americana", "Amiably", "Amulet", "Amusement", "Amusing", "Anime", "Anniversary", "Annual", "Anoint", "Apparel", "Applause", "Astonish", "attempt", "Attendee", "Attitude", "Available", "Avatar", "Avenue", "Bailiff", "Balance", "Bargain", "Basement", "Basmati", "Beckon", "Behold", "Belief", "Benches", "Bicycle", "Billboard", "Biology", "Biscuit", "Bizarre", "Blandish", "Blanket", "Blarney", "Blemish", "Blizzard", "Blurred", "Boarders", "Bogus", "Boogie-woogie", "Bookworm", "Boorish", "Bootless", "Botany", "Bowie", "Bravery", "Breakfast", "Breathtaking", "Brethren", "brigand", "Bristle", "bubble-wrap", "Bumblebee", "Butterscotch", "Camcorder", "Carnation", "Carnival", "Carnivore", "Cashier", "Castle", "Caterpillar", "Celery", "Chocolate", "Chowder", "Cidery", "Citation", "Clambering", "Classical", "Clients", "closure", "Clowder", "coastal", "Comfortable", "Companion", "Compelling", "Complaint", "Complementary", "Complete", "Composite", "Condemn", "condition", "Connection", "Contestants", "Continued","Highlands", "Hollyhock", "Homesteader", "Homicide", "Horseradish", "Hovering", "Identified", "Illusion", "impossible", "Incident", "Infiltrate", "Influential", "Inglorious", "Initials", "Innocent", "insight", "Insomnia", "Inspector", "Institute", "Intellectual", "Intersect", "Intertidal", "Invisible", "Irrigation", "Isolation", "jackal", "Jealousy", "Jitterbug", "Joinery", "Kenning", "khaki", "Kindred", "Labradoodle", "Lambasted", "Lateral", "Laundry", "Lazily", "Legislature", "Lexicon", "Likelier", "Limelight", "Linguistics", "Listener", "Literally", "Lodging", "Luddi", "Lukewarm", "magazine", "Magician", "Marathon", "Maritime", "Marooned", "Maximum", "Meantime", "Medallion", "Membership", "Memorandum", "Meteor", "Metrical", "Millionaire", "Mockery", "Modality", "Moisture", "Monopolise", "Monopolise OR Monopolize", "Montage", "Mosquito", "Mummified", "Munchkin", "Muscular", "Nationalism", "Nephew", "Nervily", "Nonsense", "notable", "Nurture", "oatmeal", "Omission", "Opinionated", "Optician", "Ornament", "Overcrowding", "Overtures", "Overweening", "Parasite", "Passengers", "passionfruit", "Pathogen", "Pedicure", "Pedigree", "Peninsular", "Performance", "Persists", "photography", "Pitiful", "Plumbing", "Poisonous", "policy", "portal", "practicing", "Pressure", "Pristine", "privy", "Profiteer", "Promote", "pronounced", "prosperity", "Protested", "punctuation", "radius", "Raspberry", "rebound", "reckless","Contusion", "Convention", "conversation", "Cooperate", "Copperhead", "Corkscrew", "Cornily", "Craggy", "Creation", "Cricketer", "Criminal", "crippled", "Criteria", "Critically", "Crooked", "Crumpled", "Cucumber", "Cupboard", "Custody", "Daresay", "Daunted", "Dawdle", "deadeye", "Debunk", "Décor", "Delicate", "Description", "develop", "Diagram", "Dialect", "Digestive", "Dignified", "Dillydally", "Dimension", "Directed", "Disaster", "discovery", "Distance", "Distinctive", "Diversion", "Diversity", "Dramatization", "Dreadlocks", "Duckling", "Dumbwaiter", "earthquake", "Editorial", "Effortless", "Egyptian", "Einstein", "Elasticity", "Elocution", "empire", "Endearing", "Engraved", "Enormous", "enthusiasm", "Entrée", "Escalator", "Escapade", "Especially", "Exclusion", "Exclusive", "Existence", "Explosive", "Extradition", "Fabulist", "Fadeaway", "Fantastically", "Fashionista", "Favourite", "Fellowship", "Ferocious", "Fervently", "Flashback", "Fleeciness", "Flexible", "Flimflammer", "Floridly", "Flummery", "Flustered", "Foppery", "Forensics", "Forgeable", "Formalize", "Formula", "Fragile", "Fragrance", "Frailty", "Fraught", "Freight", "Frequently", "Frontier", "funniness", "Garniture", "Gaucho", "Generation", "Giraffe", "glacier", "Glinting", "Glitterati", "Godspeed", "Gradual", "granddaughter", "Gridiron", "Guardian", "Gymnastics", "Habitual", "hard-bound", "Harmonious", "Harrowing", "headache", "Headdress", "Hermitage"]
+
+
+
+
+
+

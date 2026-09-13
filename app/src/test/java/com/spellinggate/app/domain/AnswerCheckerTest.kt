@@ -1,7 +1,6 @@
 package com.spellinggate.app.domain
 
 import com.spellinggate.app.model.SpellingWord
-import com.spellinggate.app.model.WordDifficulty
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -9,7 +8,6 @@ import org.junit.Test
 class AnswerCheckerTest {
     private val expectedWord = SpellingWord(
         spelling = "conscientious",
-        difficulty = WordDifficulty.HARD,
     )
 
     @Test

@@ -1,7 +1,6 @@
 package com.spellinggate.app.domain
 
 import com.spellinggate.app.model.SpellingWord
-import com.spellinggate.app.model.WordDifficulty
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -9,9 +8,9 @@ import org.junit.Test
 
 class ChallengeSessionTest {
     private val words = listOf(
-        SpellingWord("calendar", WordDifficulty.EASY),
-        SpellingWord("necessary", WordDifficulty.EASY),
-        SpellingWord("conscientious", WordDifficulty.HARD),
+        SpellingWord("calendar"),
+        SpellingWord("necessary"),
+        SpellingWord("conscientious"),
     )
 
     @Test

@@ -1,7 +1,6 @@
 package com.spellinggate.app.domain
 
 import com.spellinggate.app.model.SpellingWord
-import com.spellinggate.app.model.WordDifficulty
 import java.util.Locale
 import kotlin.random.Random
 import org.junit.Assert.assertEquals
@@ -9,7 +8,7 @@ import org.junit.Test
 
 class ChallengeWordSelectorTest {
     private val testWords = (1..12).map { index ->
-        SpellingWord("word$index", WordDifficulty.EASY)
+        SpellingWord("word$index")
     }
 
     @Test
