@@ -24,11 +24,14 @@ class PersonalGateService : Service() {
     private lateinit var windowManager: WindowManager
     private var overlay: LinearLayout? = null
 
-    private val unlockReceiver = object : BroadcastReceiver() {
+    private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_USER_PRESENT) {
-                runCatching { GateSessionStore(context).prepareNewGate() }
-                    .onSuccess { guard() }
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> resetForScreenOff()
+                Intent.ACTION_USER_PRESENT -> {
+                    runCatching { GateSessionStore(context).prepareNewGate() }
+                        .onSuccess { guard() }
+                }
             }
         }
     }
@@ -47,11 +50,15 @@ class PersonalGateService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build(),
         )
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT), RECEIVER_EXPORTED)
+            registerReceiver(screenStateReceiver, screenFilter, RECEIVER_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+            registerReceiver(screenStateReceiver, screenFilter)
         }
     }
 
@@ -60,13 +67,14 @@ class PersonalGateService : Service() {
             ACTION_GUARD -> guard()
             ACTION_VISIBLE -> removeOverlay()
             ACTION_RELEASE -> removeOverlay()
+            ACTION_SCREEN_OFF_RESET -> resetForScreenOff()
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
         removeOverlay()
-        runCatching { unregisterReceiver(unlockReceiver) }
+        runCatching { unregisterReceiver(screenStateReceiver) }
         super.onDestroy()
     }
 
@@ -75,10 +83,19 @@ class PersonalGateService : Service() {
     private fun guard() {
         if (!Settings.canDrawOverlays(this) || !GateSessionStore(this).isLocked()) return
         showOverlay()
+        launchGateActivity()
+    }
+
+    private fun launchGateActivity() {
         val activityIntent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         startActivity(activityIntent)
+    }
+
+    private fun resetForScreenOff() {
+        runCatching { GateSessionStore(this).prepareNewGate() }
+        removeOverlay()
     }
 
     private fun showOverlay() {
@@ -99,7 +116,10 @@ class PersonalGateService : Service() {
                 text = "Return to Challenge"
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(131, 217, 189))
                 setTextColor(Color.rgb(13, 57, 47))
-                setOnClickListener { guard() }
+                setOnClickListener {
+                    removeOverlay()
+                    launchGateActivity()
+                }
             })
         }
         val params = WindowManager.LayoutParams(
@@ -131,6 +151,7 @@ class PersonalGateService : Service() {
         private const val ACTION_GUARD = "com.spellinggate.app.GUARD"
         private const val ACTION_VISIBLE = "com.spellinggate.app.VISIBLE"
         private const val ACTION_RELEASE = "com.spellinggate.app.RELEASE"
+        private const val ACTION_SCREEN_OFF_RESET = "com.spellinggate.app.SCREEN_OFF_RESET"
         private const val PREFS = "personal_gate"
         private const val KEY_ENABLED = "enabled"
 
@@ -141,6 +162,7 @@ class PersonalGateService : Service() {
         fun guard(context: Context) = send(context, ACTION_GUARD)
         fun activityVisible(context: Context) = send(context, ACTION_VISIBLE)
         fun release(context: Context) = send(context, ACTION_RELEASE)
+        fun screenOff(context: Context) = send(context, ACTION_SCREEN_OFF_RESET)
         fun isEnabled(context: Context): Boolean =
             context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_ENABLED, false)
         private fun send(context: Context, action: String) {
