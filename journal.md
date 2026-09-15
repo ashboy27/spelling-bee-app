@@ -32,13 +32,14 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - Persistent states are `LOCKED` and `RELEASED`.
 - A phone unlock calls `prepareNewGate()`, which marks the gate locked but deliberately does **not** select words.
 - The Activity initially displays a Start Challenge screen. Calling `startChallenge()` selects and persists the 10 random words.
-- Saved sessions include the exact word list, difficulties, and current index, allowing process/activity recreation to resume the same challenge.
+- Saved sessions include the exact word list, replacement counts, and current index, allowing process/activity recreation to resume the same challenge while the display remains on.
+- `ACTION_SCREEN_OFF` discards the active session, removes the overlay, exits lock-task mode, and closes the Activity. The next `ACTION_USER_PRESENT` always prepares a fresh gate and returns to the Start Challenge screen.
 - Corrupt/missing word data fails open: the gate is released rather than trapping the user.
 
 ## UI and Text-to-Speech
 
 - `MainActivity` owns the Compose UI and blocks Back while `GateSessionStore.isLocked()` is true.
-- Initial unlock UI offers **Start Challenge** and **Use Password Instead**.
+- Initial unlock UI offers **Start Challenge**, **Use Password Instead**, and—directly below it when available—**Use fingerprint**.
 - TTS is not created until Start Challenge is pressed, preventing the first word from being spoken before the user is ready.
 - `AndroidTextToSpeechSpeaker` uses Android `TextToSpeech`, preferring installed offline English voices in `en-PK`, then `en-IN`, `en-GB`, and `en-US` order. It falls back safely when a regional voice is unavailable. It also provides automatic first pronunciation, replay support, initialization/error states, and lifecycle shutdown.
 - Speech is tuned for spelling clarity with a slower `0.70` rate and maximum TTS utterance volume (`1.0`); the phone's media-volume setting remains the final loudness limit.
@@ -64,6 +65,7 @@ The current personal-phone implementation is a **soft gate**, not a fully manage
 - Current bypass password: `ashar`.
 - `BypassPasswordVerifier` stores no plaintext password. It verifies a salted PBKDF2-HMAC-SHA256 hash with 120,000 iterations and constant-time `MessageDigest.isEqual()` comparison.
 - Password input buffers/specifications are cleared after derivation and authentication values are never logged.
+- Password-protected admin actions also offer Android's system biometric prompt when an enrolled device biometric is available. Fingerprint templates and matching remain inside Android's secure biometric subsystem; the app receives only success/error callbacks and retains password fallback.
 
 ## Personal-phone soft gate
 

@@ -1,8 +1,10 @@
 package com.spellinggate.app
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -11,14 +13,17 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
@@ -70,6 +76,7 @@ import com.spellinggate.app.gate.DevicePolicyController
 import com.spellinggate.app.gate.GateSessionStore
 import com.spellinggate.app.gate.PersonalGateService
 import com.spellinggate.app.security.BypassPasswordVerifier
+import com.spellinggate.app.security.DeviceBiometricAuthenticator
 import com.spellinggate.app.speech.AndroidTextToSpeechSpeaker
 import com.spellinggate.app.speech.SpeechStatus
 import com.spellinggate.app.ui.theme.SpellingGateTheme
@@ -133,6 +140,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        val screenIsInteractive = getSystemService(PowerManager::class.java).isInteractive
+        if (!screenIsInteractive && gateShown) {
+            runCatching { sessionStore.prepareNewGate() }
+            policyController.releaseLockTask(this)
+            PersonalGateService.screenOff(this)
+            finishAndRemoveTask()
+            return
+        }
         if (
             gateShown && sessionStore.isLocked() && !isChangingConfigurations &&
             Settings.canDrawOverlays(this)
@@ -199,18 +214,18 @@ class MainActivity : ComponentActivity() {
 private fun PersonalGateSetupScreen(onGrantPermission: () -> Unit) {
     Scaffold { padding ->
         GateColumn(padding.calculateTopPadding()) {
-            Icon(Icons.Rounded.Lock, null, modifier = Modifier.height(64.dp))
-            Spacer(Modifier.height(20.dp))
+            Icon(Icons.Rounded.Lock, null, modifier = Modifier.height(48.dp))
+            Spacer(Modifier.height(14.dp))
             Text("Enable Personal Gate", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
             Text(
                 "Allow display over other apps so the spelling challenge can return after Home, Recents, or app switching.",
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             Button(
                 onClick = onGrantPermission,
-                modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().height(52.dp),
+                modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().heightIn(min = 48.dp),
             ) { Text("Grant Required Permission") }
         }
     }
@@ -227,6 +242,10 @@ private fun SpellingGateApp(
     onRelease: (ReleaseReason) -> Boolean,
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
+    val biometricAvailable = remember(activity) {
+        activity?.let(DeviceBiometricAuthenticator::isAvailable) == true
+    }
     var session by remember(initialSession) { mutableStateOf(initialSession) }
     var answer by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf("") }
@@ -260,11 +279,34 @@ private fun SpellingGateApp(
         PasswordBypassScreen(
             password,
             passwordError,
+            biometricAvailable = biometricAvailable,
             onPasswordChanged = {
                 password = it
                 passwordError = ""
             },
             onSubmit = submitPassword,
+            onBiometric = {
+                val hostActivity = activity
+                if (hostActivity == null) {
+                    passwordError = "Biometric authentication is unavailable."
+                } else {
+                    DeviceBiometricAuthenticator.authenticate(
+                        activity = hostActivity,
+                        title = "Unlock Spelling Gate",
+                        subtitle = "Confirm your fingerprint or device biometric",
+                        onSuccess = {
+                            if (onRelease(ReleaseReason.PASSWORD)) {
+                                password = ""
+                                passwordError = ""
+                                releaseReason = ReleaseReason.PASSWORD
+                            } else {
+                                passwordError = "The gate could not be released. Please try again."
+                            }
+                        },
+                        onError = { passwordError = it },
+                    )
+                }
+            },
             onBack = {
                 password = ""
                 passwordError = ""
@@ -277,6 +319,7 @@ private fun SpellingGateApp(
     val activeSession = session
     if (activeSession == null) {
         StartChallengeScreen(
+            biometricAvailable = biometricAvailable,
             onStart = {
                 runCatching(onStart)
                     .onSuccess { session = it }
@@ -286,6 +329,25 @@ private fun SpellingGateApp(
                     }
             },
             onUsePassword = { showPasswordScreen = true },
+            onBiometric = {
+                val hostActivity = activity
+                if (hostActivity != null) {
+                    DeviceBiometricAuthenticator.authenticate(
+                        activity = hostActivity,
+                        title = "Unlock Spelling Gate",
+                        subtitle = "Confirm your fingerprint or device biometric",
+                        onSuccess = {
+                            if (onRelease(ReleaseReason.PASSWORD)) {
+                                releaseReason = ReleaseReason.PASSWORD
+                            }
+                        },
+                        onError = {
+                            passwordError = it
+                            showPasswordScreen = true
+                        },
+                    )
+                }
+            },
         )
         return
     }
@@ -334,6 +396,7 @@ private fun SpellingGateApp(
         activeSession.totalWords,
         activeSession.currentWordReplacementCount,
         activeSession.currentWord.spelling,
+        biometricAvailable,
         answer,
         statusMessage,
         statusIsError,
@@ -367,6 +430,20 @@ private fun SpellingGateApp(
                     statusMessage = it.message ?: "A replacement word could not be selected."
                     statusIsError = true
                 }
+        },
+        onAdminBiometric = { onSuccess, onError ->
+            val hostActivity = activity
+            if (hostActivity == null) {
+                onError("Biometric authentication is unavailable.")
+            } else {
+                DeviceBiometricAuthenticator.authenticate(
+                    activity = hostActivity,
+                    title = "Admin reveal",
+                    subtitle = "Confirm your fingerprint to view this spelling",
+                    onSuccess = onSuccess,
+                    onError = onError,
+                )
+            }
         },
         onSubmit = {
             if (answer.isBlank()) {
@@ -415,8 +492,10 @@ private fun SpellingGateApp(
 private fun PasswordBypassScreen(
     password: String,
     errorMessage: String,
+    biometricAvailable: Boolean,
     onPasswordChanged: (String) -> Unit,
     onSubmit: () -> Unit,
+    onBiometric: () -> Unit,
     onBack: () -> Unit,
 ) {
     val controlsRequester = remember { BringIntoViewRequester() }
@@ -424,10 +503,17 @@ private fun PasswordBypassScreen(
     BackHandler(onBack = onBack)
     Scaffold { padding ->
         GateColumn(padding.calculateTopPadding()) {
-            Icon(Icons.Rounded.Lock, null, modifier = Modifier.height(64.dp))
-            Spacer(Modifier.height(20.dp))
-            Text("Use Password Instead", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(24.dp))
+            Icon(Icons.Rounded.Lock, null, modifier = Modifier.height(46.dp))
+            Spacer(Modifier.height(12.dp))
+            Text("Admin access", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Use your password or device fingerprint.",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(18.dp))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -457,12 +543,28 @@ private fun PasswordBypassScreen(
                     isError = errorMessage.isNotEmpty(),
                     supportingText = if (errorMessage.isNotEmpty()) ({ Text(errorMessage) }) else null,
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = onSubmit,
-                    modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
-                ) { Text("Unlock") }
-                TextButton(onClick = onBack) { Text("Back to Spelling") }
+                    modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().heightIn(min = 48.dp),
+                ) {
+                    Icon(Icons.Rounded.LockOpen, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Unlock with password")
+                }
+                if (biometricAvailable) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onBiometric,
+                        modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().heightIn(min = 48.dp),
+                    ) {
+                        Icon(Icons.Rounded.Fingerprint, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Use fingerprint")
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onBack) { Text("Back to challenge") }
             }
         }
     }
@@ -475,13 +577,13 @@ private fun ReleasedScreen(reason: ReleaseReason) {
             Icon(
                 if (reason == ReleaseReason.CHALLENGE) Icons.Rounded.CheckCircle else Icons.Rounded.LockOpen,
                 null,
-                modifier = Modifier.height(72.dp),
+                modifier = Modifier.height(54.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
             Text(
                 if (reason == ReleaseReason.CHALLENGE) "Challenge Complete" else "Password Accepted",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(12.dp))
@@ -513,28 +615,53 @@ private fun speechStatusMessage(status: SpeechStatus): String? = when (status) {
 
 @Composable
 private fun StartChallengeScreen(
+    biometricAvailable: Boolean,
     onStart: () -> Unit,
     onUsePassword: () -> Unit,
+    onBiometric: () -> Unit,
 ) {
     BackHandler { }
     Scaffold { padding ->
         GateColumn(padding.calculateTopPadding()) {
-            Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, modifier = Modifier.height(64.dp))
-            Spacer(Modifier.height(20.dp))
-            Text("Spelling Gate", style = MaterialTheme.typography.headlineMedium)
+            Icon(
+                Icons.AutoMirrored.Rounded.VolumeUp,
+                null,
+                modifier = Modifier.height(48.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
             Spacer(Modifier.height(12.dp))
+            Text("Spelling Gate", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
             Text(
                 "Ready for a new 10-word challenge?",
                 textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
             )
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(20.dp))
             Button(
                 onClick = onStart,
-                modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
+                modifier = Modifier.widthIn(max = 300.dp).fillMaxWidth().heightIn(min = 48.dp),
             ) { Text("Start Challenge") }
-            Spacer(Modifier.height(12.dp))
-            TextButton(onClick = onUsePassword) { Text("Use Password Instead") }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onUsePassword,
+                modifier = Modifier.widthIn(max = 300.dp).fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Icon(Icons.Rounded.Lock, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Use password")
+            }
+            if (biometricAvailable) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onBiometric,
+                    modifier = Modifier.widthIn(max = 300.dp).fillMaxWidth().heightIn(min = 48.dp),
+                ) {
+                    Icon(Icons.Rounded.Fingerprint, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Use fingerprint")
+                }
+            }
         }
     }
 }
@@ -546,12 +673,14 @@ private fun SpellingChallengeScreen(
     totalWords: Int,
     replacementCount: Int,
     currentWordSpelling: String,
+    biometricAvailable: Boolean,
     answer: String,
     statusMessage: String,
     statusIsError: Boolean,
     onAnswerChanged: (String) -> Unit,
     onReplayWord: () -> Unit,
     onReplaceWord: () -> Unit,
+    onAdminBiometric: (() -> Unit, (String) -> Unit) -> Unit,
     onSubmit: () -> Unit,
     onUsePassword: () -> Unit,
 ) {
@@ -596,61 +725,51 @@ private fun SpellingChallengeScreen(
                 progress = { currentWord.toFloat() / totalWords.toFloat() },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(16.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant,
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.VolumeUp,
                         contentDescription = null,
-                        modifier = Modifier.height(42.dp),
+                        modifier = Modifier.height(34.dp),
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text("Listen carefully", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "Replay the word whenever you need to.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = onReplayWord) { Text("Replay Word") }
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = onReplayWord,
+                        modifier = Modifier.heightIn(min = 44.dp),
+                    ) { Text("Replay word") }
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedButton(
-                    onClick = onReplaceWord,
-                    enabled = replacementCount < ChallengeSession.MAX_REPLACEMENTS_PER_WORD,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(
-                        "New word · ${ChallengeSession.MAX_REPLACEMENTS_PER_WORD - replacementCount} left",
-                    )
-                }
-                TextButton(
-                    onClick = {
-                        if (adminRevealVisible) {
-                            adminRevealVisible = false
-                        } else {
-                            adminPassword = ""
-                            adminError = ""
-                            showAdminDialog = true
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                ) { Text(if (adminRevealVisible) "Hide spelling" else "Admin reveal") }
-            }
+            ChallengeSecondaryActions(
+                replacementCount = replacementCount,
+                adminRevealVisible = adminRevealVisible,
+                onReplaceWord = onReplaceWord,
+                onAdminAction = {
+                    if (adminRevealVisible) {
+                        adminRevealVisible = false
+                    } else {
+                        adminPassword = ""
+                        adminError = ""
+                        showAdminDialog = true
+                    }
+                },
+            )
             if (adminRevealVisible) {
                 Spacer(Modifier.height(14.dp))
                 Surface(
@@ -660,7 +779,7 @@ private fun SpellingChallengeScreen(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text("Admin spelling", style = MaterialTheme.typography.labelLarge)
@@ -673,7 +792,7 @@ private fun SpellingChallengeScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(18.dp))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -710,13 +829,13 @@ private fun SpellingChallengeScreen(
                     ),
                     keyboardActions = KeyboardActions(onDone = { onSubmit() }),
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = onSubmit,
-                    modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth().height(52.dp),
+                    modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text("Submit") }
                 if (statusMessage.isNotEmpty()) {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text(
                         statusMessage,
                         color = if (statusIsError) MaterialTheme.colorScheme.error
@@ -724,8 +843,15 @@ private fun SpellingChallengeScreen(
                         textAlign = TextAlign.Center,
                     )
                 }
-                Spacer(Modifier.height(20.dp))
-                TextButton(onClick = onUsePassword) { Text("Use Password Instead") }
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onUsePassword,
+                    modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().heightIn(min = 46.dp),
+                ) {
+                    Icon(Icons.Rounded.Lock, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Admin unlock")
+                }
             }
         }
     }
@@ -742,6 +868,35 @@ private fun SpellingChallengeScreen(
             text = {
                 Column {
                     Text("Enter the bypass password to view this word.")
+                    if (biometricAvailable) {
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = {
+                                onAdminBiometric(
+                                    {
+                                        adminRevealVisible = true
+                                        showAdminDialog = false
+                                        adminPassword = ""
+                                        adminError = ""
+                                    },
+                                    { adminError = it },
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Rounded.Fingerprint, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Use fingerprint")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "or enter the password",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = adminPassword,
@@ -795,28 +950,81 @@ private fun SpellingChallengeScreen(
 }
 
 @Composable
+private fun ChallengeSecondaryActions(
+    replacementCount: Int,
+    adminRevealVisible: Boolean,
+    onReplaceWord: () -> Unit,
+    onAdminAction: () -> Unit,
+) {
+    val replacementsLeft =
+        ChallengeSession.MAX_REPLACEMENTS_PER_WORD - replacementCount
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth < 340.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onReplaceWord,
+                    enabled = replacementsLeft > 0,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
+                ) { Text("New word · $replacementsLeft left") }
+                OutlinedButton(
+                    onClick = onAdminAction,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
+                ) { Text(if (adminRevealVisible) "Hide spelling" else "Admin reveal") }
+            }
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = onReplaceWord,
+                    enabled = replacementsLeft > 0,
+                    modifier = Modifier.weight(1f).heightIn(min = 46.dp),
+                ) { Text("New word · $replacementsLeft left") }
+                OutlinedButton(
+                    onClick = onAdminAction,
+                    modifier = Modifier.weight(1f).heightIn(min = 46.dp),
+                ) { Text(if (adminRevealVisible) "Hide spelling" else "Admin reveal") }
+            }
+        }
+    }
+}
+
+@Composable
 private fun GateColumn(topPadding: Dp, content: @Composable () -> Unit) {
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .padding(top = topPadding)
-            .imePadding()
-            .padding(horizontal = 18.dp, vertical = 24.dp),
-        contentAlignment = Alignment.Center,
+            .imePadding(),
     ) {
-        Surface(
-            modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 2.dp,
+        val compactWidth = maxWidth < 360.dp
+        val compactHeight = maxHeight < 680.dp
+        val outerHorizontal = if (compactWidth) 10.dp else 18.dp
+        val outerVertical = if (compactHeight) 8.dp else 16.dp
+        val innerHorizontal = if (compactWidth) 16.dp else 24.dp
+        val innerVertical = if (compactHeight) 16.dp else 24.dp
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = outerHorizontal, vertical = outerVertical),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 28.dp, vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) { content() }
+            Surface(
+                modifier = Modifier.widthIn(max = 500.dp).fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 2.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = innerHorizontal, vertical = innerVertical),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) { content() }
+            }
         }
     }
 }
@@ -825,6 +1033,9 @@ private fun GateColumn(topPadding: Dp, content: @Composable () -> Unit) {
 @Composable
 private fun PreviewChallenge() {
     SpellingGateTheme {
-        SpellingChallengeScreen(1, 10, 0, "example", "", "", false, {}, {}, {}, {}, {})
+        SpellingChallengeScreen(
+            1, 10, 0, "example", true, "", "", false,
+            {}, {}, {}, { success, _ -> success() }, {}, {},
+        )
     }
 }
